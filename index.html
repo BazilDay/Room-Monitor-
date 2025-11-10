@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remote DHT Monitor (ThingSpeak)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            /* Vertical gradient matching the NodeMCU style */
+            background: linear-gradient(to bottom, #5D3FD3 0%, #D8D8D8 100%);
+        }
+        /* --- LIQUID GLASS EFFECT --- */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.15); /* Slightly transparent white */
+            backdrop-filter: blur(14px); /* Frosting effect */
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.6); /* White border */
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1), 
+                        inset 0 0 10px rgba(255, 255, 255, 0.3); /* Inner shine */
+        }
+        .data-label {
+            color: #1a202c; /* Dark text for readability */
+        }
+        .data-value {
+            color: #ffffff; /* White text for contrast on glass */
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5); /* Shadow for pop */
+        }
+    </style>
+</head>
+<body class="p-4">
+
+    <div class="w-full max-w-md">
+        <div class="glass-card rounded-xl p-6 mb-6 text-center">
+            <h1 class="text-3xl font-extrabold mb-2" style="color: #1a202c; text-shadow: 1px 1px 1px rgba(255, 255, 255, 0.5);">
+                Room Monitor
+            </h1>
+            <p id="status-message" class="text-sm font-medium text-gray-200">
+                Loading latest data from ThingSpeak...
+            </p>
+        </div>
+
+        <!-- Temperature Card -->
+        <div class="glass-card rounded-xl p-6 mb-4 flex items-center justify-between">
+            <span class="data-label text-xl font-semibold">Temperature</span>
+            <div id="temp-value" class="data-value text-4xl font-extrabold">-- °C</div>
+        </div>
+
+        <!-- Humidity Card -->
+        <div class="glass-card rounded-xl p-6 mb-4 flex items-center justify-between">
+            <span class="data-label text-xl font-semibold">Humidity</span>
+            <div id="hum-value" class="data-value text-4xl font-extrabold">-- %</div>
+        </div>
+        
+        <!-- Last Update Timestamp -->
+        <div class="text-center mt-6">
+            <p class="text-xs font-light text-white opacity-80" id="timestamp">Last updated: Never</p>
+            <p class="text-xs font-light text-white opacity-80 mt-2">
+                *Local Min/Max reset is only available via the NodeMCU's local IP (192.168.x.x).
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // *** 1. MANDATORY: ThingSpeak Configuration ***
+        // Your channel ID based on previous interactions:
+        const CHANNEL_ID = '3156540';
+        // Your READ API KEY based on previous interactions:
+        const READ_API_KEY = 'D4B66VS5KZ7M826A'; 
+
+        const tempValueEl = document.getElementById('temp-value');
+        const humValueEl = document.getElementById('hum-value');
+        const statusEl = document.getElementById('status-message');
+        const timestampEl = document.getElementById('timestamp');
+
+        function formatTimestamp(ts) {
+            const date = new Date(ts);
+            const timeOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
+            const dateOptions = { month: 'short', day: 'numeric', year: 'numeric' };
+            const timeStr = date.toLocaleTimeString('en-US', timeOptions);
+            const dateStr = date.toLocaleDateString('en-US', dateOptions);
+            return `${dateStr} at ${timeStr}`;
+        }
+
+        async function fetchReadings() {
+            if (CHANNEL_ID === '00000' || READ_API_KEY === '') {
+                statusEl.innerHTML = '<span style="color:red; font-weight:bold;">ERROR: Please update CHANNEL_ID and READ_API_KEY in the script!</span>';
+                return;
+            }
+
+            // URL now includes the necessary API key for private channel access
+            const url = `https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds/last.json?api_key=${READ_API_KEY}`;
+            statusEl.textContent = 'Fetching data...';
+
+            try {
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    // Check for a 400 Bad Request error specifically
+                    const errorText = response.status === 400 ? "400 Bad Request (API Key or Channel ID issue)" : `Error: ${response.status}`;
+                    throw new Error(`ThingSpeak API Error: ${errorText}`);
+                }
+                
+                const data = await response.json();
+                
+                // Assuming Field 1 is Temperature and Field 2 is Humidity
+                const temp = parseFloat(data.field1);
+                const hum = parseFloat(data.field2);
+                const timestamp = data.created_at;
+
+                if (isNaN(temp) || isNaN(hum)) {
+                     statusEl.textContent = 'Sensor data currently invalid (reading NaN).';
+                     tempValueEl.textContent = '-- °C';
+                     humValueEl.textContent = '-- %';
+                } else {
+                    tempValueEl.textContent = `${temp.toFixed(1)} °C`;
+                    humValueEl.textContent = `${hum.toFixed(1)} %`;
+                    statusEl.textContent = 'Live data stream running.';
+                    timestampEl.textContent = `Last updated: ${formatTimestamp(timestamp)}`;
+                }
+
+            } catch (error) {
+                console.error("Fetch error:", error);
+                statusEl.innerHTML = `<span style="color:red; font-weight:bold;">Network Error: ${error.message}. Cannot access ThingSpeak.</span>`;
+            }
+        }
+
+
+        // Fetch data immediately on load, then every 5 seconds
+        fetchReadings();
+        setInterval(fetchReadings, 5000); // Poll every 5 seconds (5000 ms)
+    </script>
+</body>
+</html>
