@@ -61,17 +61,14 @@
         <!-- Last Update Timestamp -->
         <div class="text-center mt-6">
             <p class="text-xs font-light text-white opacity-80" id="timestamp">Last updated: Never</p>
-            <p class="text-xs font-light text-white opacity-80 mt-2">
-                *Local Min/Max reset is only available via the NodeMCU's local IP (192.168.x.x).
-            </p>
+            <!-- Removed the line containing the update frequency note -->
         </div>
     </div>
 
     <script>
         // *** 1. MANDATORY: ThingSpeak Configuration ***
-        // Your channel ID based on previous interactions:
         const CHANNEL_ID = '3156540';
-        // Your READ API KEY based on previous interactions:
+        // *** READ API KEY IS NOW CORRECTLY SET FROM YOUR THINGSPAK CONFIGURATION ***
         const READ_API_KEY = 'D4B66VS5KZ7M826A'; 
 
         const tempValueEl = document.getElementById('temp-value');
@@ -81,19 +78,18 @@
 
         function formatTimestamp(ts) {
             const date = new Date(ts);
-            const timeOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true };
+            // Updated timeOptions to use hour12: true for 12-hour format (AM/PM)
+            const timeOptions = { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }; 
             const dateOptions = { month: 'short', day: 'numeric', year: 'numeric' };
             const timeStr = date.toLocaleTimeString('en-US', timeOptions);
             const dateStr = date.toLocaleDateString('en-US', dateOptions);
+            // Example output: "Nov 11, 2025 at 12:12:01 AM"
             return `${dateStr} at ${timeStr}`;
         }
 
         async function fetchReadings() {
-            if (CHANNEL_ID === '00000' || READ_API_KEY === '') {
-                statusEl.innerHTML = '<span style="color:red; font-weight:bold;">ERROR: Please update CHANNEL_ID and READ_API_KEY in the script!</span>';
-                return;
-            }
-
+            // Note: Removed the check for 'YOUR_READ_API_KEY' since it is now populated
+            
             // URL now includes the necessary API key for private channel access
             const url = `https://api.thingspeak.com/channels/${CHANNEL_ID}/feeds/last.json?api_key=${READ_API_KEY}`;
             statusEl.textContent = 'Fetching data...';
@@ -102,14 +98,12 @@
                 const response = await fetch(url);
                 
                 if (!response.ok) {
-                    // Check for a 400 Bad Request error specifically
-                    const errorText = response.status === 400 ? "400 Bad Request (API Key or Channel ID issue)" : `Error: ${response.status}`;
-                    throw new Error(`ThingSpeak API Error: ${errorText}`);
+                    throw new Error(`ThingSpeak API Error: ${response.status}`);
                 }
                 
                 const data = await response.json();
                 
-                // Assuming Field 1 is Temperature and Field 2 is Humidity
+                // Assuming Field 1 is Temperature and Field 2 is Humidity (as per C++ code setup)
                 const temp = parseFloat(data.field1);
                 const hum = parseFloat(data.field2);
                 const timestamp = data.created_at;
